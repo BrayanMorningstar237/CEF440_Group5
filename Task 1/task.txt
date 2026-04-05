@@ -1,1 +1,12 @@
-this is test
+CEF440: Internet Programming and Mobile Programming
+Task 1
+1. Review and compare the major types of mobile apps and their differences (native,
+progressive web apps, hybrid apps)
+2. Review and compare mobile app programming languages
+3. Review and compare mobile app development frameworks by comparing their key features
+(language, performance, cost & time to market, UX & UI, complexity, community support)
+and where they can be used.
+4. Study mobile application architectures and design patterns
+5. Study how to collect and analyse user requirements for a mobile application (Requirement
+Engineering)
+6. Study how to estimate mobile app development cost.
