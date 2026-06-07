@@ -1,0 +1,16 @@
+
+> qos-qoe@1.0.0 start
+> expo start --port 8082 -c
+
+Starting project at C:\Users\salo\Desktop\school\CEF440_Group5\Task 5\qos-qoe
+Starting Metro Bundler
+
+warning: Bundler cache is empty, rebuilding (this may take a minute)
+Waiting on http://localhost:8082
+Logs for your project will appear below.
+ ERROR  Project is incompatible with this version of Expo Go
+
+This project requires a newer version of Expo Go.
+
+How to fix this error:
+Download the latest version of Expo Go from the Play Store.

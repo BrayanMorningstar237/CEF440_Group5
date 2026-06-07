@@ -1,0 +1,43 @@
+{
+  "expo": {
+    "name": "qos-qoe",
+    "slug": "qos-qoe",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "QoS/QoE Collector uses your location to attach geospatial context to network quality measurements.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "QoS/QoE Collector can collect passive network measurements in the background for subscriber experience analytics.",
+        "UIBackgroundModes": [
+          "fetch",
+          "location"
+        ]
+      }
+    },
+    "android": {
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ],
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-sqlite",
+      "expo-background-task"
+    ]
+  }
+}
