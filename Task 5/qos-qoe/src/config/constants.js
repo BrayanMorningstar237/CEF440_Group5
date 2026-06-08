@@ -8,6 +8,7 @@ export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.0
 
 export const DEFAULT_SETTINGS = {
   autoCollect: false,
+  backgroundConsent: false,
   autoUpload: false,
   notifyOnPoorNetwork: true,
   latencyThresholdMs: 250,

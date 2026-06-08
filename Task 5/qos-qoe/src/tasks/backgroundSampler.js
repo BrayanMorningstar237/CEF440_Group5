@@ -12,7 +12,7 @@ TaskManager.defineTask(BACKGROUND_TASK, async () => {
     await initDb();
     const settings = await loadSettings();
     const session = await loadSession();
-    if (!settings.autoCollect || session?.user?.role !== 'user') {
+    if (!settings.autoCollect || !settings.backgroundConsent || session?.user?.role !== 'user') {
       return BackgroundTask.BackgroundTaskResult.Success;
     }
     const metrics = await collectMetrics();

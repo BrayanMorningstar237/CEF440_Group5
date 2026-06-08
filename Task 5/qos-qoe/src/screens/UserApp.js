@@ -86,6 +86,32 @@ export function UserApp({ language = 'en', session, onLogout, onToggleLanguage }
     }
   }
 
+  async function enableBackgroundCollection() {
+    const foreground = await Location.requestForegroundPermissionsAsync();
+    if (foreground.status !== 'granted') {
+      Alert.alert('Permission denied', 'Foreground location permission is required first.');
+      return;
+    }
+
+    const background = await Location.requestBackgroundPermissionsAsync().catch(() => null);
+    if (!background || background.status !== 'granted') {
+      Alert.alert(
+        'Background permission needed',
+        'Background location permission is required to collect data while the app is not in use.'
+      );
+      return;
+    }
+
+    try {
+      await BackgroundTask.registerTaskAsync(BACKGROUND_TASK, { minimumInterval: 15 });
+      updateSettings({ autoCollect: true, backgroundConsent: true });
+      setBackgroundEnabled(true);
+      Alert.alert('Automatic collection enabled', 'Background collection requires a development build.');
+    } catch (error) {
+      Alert.alert('Background registration failed', error.message);
+    }
+  }
+
   async function toggleBackground() {
     if (backgroundEnabled) {
       await BackgroundTask.unregisterTaskAsync(BACKGROUND_TASK);
@@ -93,16 +119,15 @@ export function UserApp({ language = 'en', session, onLogout, onToggleLanguage }
       setBackgroundEnabled(false);
       return;
     }
-    const foreground = await Location.requestForegroundPermissionsAsync();
-    if (foreground.status !== 'granted') {
-      Alert.alert('Permission denied', 'Foreground location permission is required first.');
-      return;
-    }
-    await Location.requestBackgroundPermissionsAsync().catch(() => null);
-    await BackgroundTask.registerTaskAsync(BACKGROUND_TASK, { minimumInterval: 15 });
-    updateSettings({ autoCollect: true });
-    setBackgroundEnabled(true);
-    Alert.alert('Automatic collection enabled', 'Background collection requires a development build.');
+
+    Alert.alert(
+      'Background data collection',
+      'Background data collection collects network samples while the app is not in use. Do you consent?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Opt in', onPress: enableBackgroundCollection },
+      ]
+    );
   }
 
   async function uploadNow(force = true) {
@@ -230,7 +255,7 @@ export function UserApp({ language = 'en', session, onLogout, onToggleLanguage }
         <View style={styles.panel}>
           <Text style={styles.sectionTitle}>Collection settings</Text>
           <SettingToggle
-            description="Runs only in a development build; Expo Go keeps foreground behavior."
+            description="Requires explicit opt-in before background data collection. Location permission must also be granted."
             label="Automatic collection"
             onChange={toggleBackground}
             value={backgroundEnabled}
