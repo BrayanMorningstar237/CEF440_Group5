@@ -38,33 +38,45 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+const networkCellSchema = new mongoose.Schema(
+  {
+    cellId: { type: String, primary: true, required: true }, // MCC-MNC-LAC-CID format
+    ispProvider: { type: String, index: true },
+    country: String,
+    region: String,
+    city: String,
+    district: String,
+    street: String,
+  },
+  { timestamps: true }
+);
+
 const measurementSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
-    userName: String,
-    userEmail: String,
+    cellId: { type: String, ref: 'NetworkCell', index: true },
     localId: Number,
     createdAt: { type: Date, required: true, index: true },
-    networkType: String,
+    networkType: String, // 'Mobile', 'WiFi', etc.
+    networkGeneration: String, // '2G', '3G', '4G', '5G', 'WiFi-5', 'WiFi-6', etc.
     isConnected: Boolean,
     isInternetReachable: Boolean,
+    isRoaming: Boolean,
     ipAddress: String,
-    ispProvider: String,
     connectionLabel: String,
+    deviceModel: String, // e.g., 'iPhone 15', 'Samsung Galaxy S24'
+    osVersion: String, // e.g., 'iOS 18.0', 'Android 14'
     latencyMs: Number,
     jitterMs: Number,
     packetLossPercent: Number,
     uploadMbps: Number,
     downloadMbps: Number,
     signalStrengthDbm: Number,
-    latitude: Number,
-    longitude: Number,
+    coordinates: {
+      type: { type: String, enum: ['Point'], default: 'Point' },
+      coordinates: { type: [Number], required: true }, // [longitude, latitude]
+    },
     accuracyM: Number,
-    country: String,
-    region: String,
-    city: String,
-    district: String,
-    street: String,
     stabilityRating: Number,
     browsingRating: Number,
     streamingRating: Number,
@@ -74,9 +86,14 @@ const measurementSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Geospatial index for location-based queries
+measurementSchema.index({ 'coordinates': '2dsphere' });
 measurementSchema.index({ userId: 1, localId: 1 }, { unique: true, sparse: true });
+measurementSchema.index({ cellId: 1 });
+measurementSchema.index({ createdAt: -1 });
 
 const User = mongoose.model('User', userSchema);
+const NetworkCell = mongoose.model('NetworkCell', networkCellSchema);
 const Measurement = mongoose.model('Measurement', measurementSchema);
 
 function signToken(user) {
@@ -121,33 +138,54 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-function mapMeasurement(row, user) {
+async function mapMeasurement(row, user) {
+  const coordinates = {
+    type: 'Point',
+    coordinates: [row.longitude ?? 0, row.latitude ?? 0], // GeoJSON format: [lng, lat]
+  };
+
+  // Generate cellId from network metadata (MCC-MNC-LAC-CID format if available)
+  const cellId = row.cell_id || `CELL-${row.network_type}-${Date.now()}`;
+
+  // Upsert NetworkCell if needed
+  if (row.country || row.city) {
+    await NetworkCell.updateOne(
+      { cellId },
+      {
+        cellId,
+        ispProvider: row.isp_provider,
+        country: row.country,
+        region: row.region,
+        city: row.city,
+        district: row.district,
+        street: row.street,
+      },
+      { upsert: true }
+    );
+  }
+
   return {
     userId: user._id,
-    userName: user.name,
-    userEmail: user.email,
+    cellId,
     localId: row.id,
     createdAt: row.created_at ? new Date(row.created_at) : new Date(),
     networkType: row.network_type,
+    networkGeneration: row.network_generation || null,
     isConnected: Boolean(row.is_connected),
     isInternetReachable: Boolean(row.is_internet_reachable),
+    isRoaming: Boolean(row.is_roaming) || false,
     ipAddress: row.ip_address,
-    ispProvider: row.isp_provider,
     connectionLabel: row.connection_label,
+    deviceModel: row.device_model || null,
+    osVersion: row.os_version || null,
     latencyMs: row.latency_ms,
     jitterMs: row.jitter_ms,
     packetLossPercent: row.packet_loss_percent,
     uploadMbps: row.upload_mbps,
     downloadMbps: row.download_mbps,
     signalStrengthDbm: row.signal_strength_dbm,
-    latitude: row.latitude,
-    longitude: row.longitude,
+    coordinates,
     accuracyM: row.accuracy_m,
-    country: row.country,
-    region: row.region,
-    city: row.city,
-    district: row.district,
-    street: row.street,
     stabilityRating: row.stability_rating,
     browsingRating: row.browsing_rating,
     streamingRating: row.streaming_rating,
@@ -201,7 +239,7 @@ app.post('/api/measurements/bulk', requireAuth, async (req, res) => {
     res.status(403).json({ message: 'Only normal users can upload measurements' });
     return;
   }
-  const docs = rows.map((row) => mapMeasurement(row, req.user));
+  const docs = await Promise.all(rows.map((row) => mapMeasurement(row, req.user)));
   let saved = 0;
   for (const doc of docs) {
     await Measurement.updateOne(
@@ -220,29 +258,49 @@ app.get('/api/measurements/mine', requireAuth, async (req, res) => {
 });
 
 app.get('/api/admin/measurements', requireAuth, requireAdmin, async (req, res) => {
-  const { city, country, location, provider, network, quality, region, user } = req.query;
+  const { city, country, location, provider, network, quality, region, user, networkGen, roaming } = req.query;
   const query = {};
   const and = [];
-  if (provider) query.ispProvider = new RegExp(provider, 'i');
   if (network) query.networkType = new RegExp(network, 'i');
-  if (country) query.country = new RegExp(country, 'i');
-  if (region) query.region = new RegExp(region, 'i');
-  if (city) query.city = new RegExp(city, 'i');
-  if (user) {
-    and.push({ $or: [{ userName: new RegExp(user, 'i') }, { userEmail: new RegExp(user, 'i') }] });
-  }
-  if (location) {
-    const matcher = new RegExp(location, 'i');
-    and.push({
-      $or: [
+  if (networkGen) query.networkGeneration = new RegExp(networkGen, 'i');
+  if (roaming === 'true') query.isRoaming = true;
+  if (roaming === 'false') query.isRoaming = false;
+
+  // Handle location queries via NetworkCell lookup
+  if (provider || country || region || city || location) {
+    const cellQuery = {};
+    if (provider) cellQuery.ispProvider = new RegExp(provider, 'i');
+    if (country) cellQuery.country = new RegExp(country, 'i');
+    if (region) cellQuery.region = new RegExp(region, 'i');
+    if (city) cellQuery.city = new RegExp(city, 'i');
+    if (location) {
+      const matcher = new RegExp(location, 'i');
+      cellQuery.$or = [
         { country: matcher },
         { region: matcher },
         { city: matcher },
         { district: matcher },
         { street: matcher },
-      ],
-    });
+      ];
+    }
+    const matchingCells = await NetworkCell.find(cellQuery).select('cellId');
+    const cellIds = matchingCells.map((c) => c.cellId);
+    if (cellIds.length > 0) {
+      and.push({ cellId: { $in: cellIds } });
+    }
   }
+
+  // Handle user search via User collection
+  if (user) {
+    const users = await User.find({
+      $or: [{ name: new RegExp(user, 'i') }, { email: new RegExp(user, 'i') }],
+    }).select('_id');
+    const userIds = users.map((u) => u._id);
+    if (userIds.length > 0) {
+      and.push({ userId: { $in: userIds } });
+    }
+  }
+
   if (quality === 'poor') {
     and.push({ $or: [{ latencyMs: { $gt: 250 } }, { downloadMbps: { $lt: 2 } }, { jitterMs: { $gt: 50 } }] });
   }
@@ -255,7 +313,11 @@ app.get('/api/admin/measurements', requireAuth, requireAdmin, async (req, res) =
   if (and.length > 0) {
     query.$and = and;
   }
-  const measurements = await Measurement.find(query).sort({ createdAt: -1 }).limit(500);
+  const measurements = await Measurement.find(query)
+    .populate('userId', 'name email')
+    .populate('cellId')
+    .sort({ createdAt: -1 })
+    .limit(500);
   res.json({ measurements });
 });
 
@@ -279,6 +341,7 @@ async function start() {
     throw new Error('MONGO_URI is required. Copy backend/.env.example to backend/.env.');
   }
   await mongoose.connect(process.env.MONGO_URI);
+  console.log('MongoDB connected successfully');
   await seedAdmin();
   app.listen(PORT, () => {
     console.log(`QoS/QoE API listening on http://localhost:${PORT}`);

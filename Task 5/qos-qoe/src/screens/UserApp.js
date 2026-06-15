@@ -144,17 +144,23 @@ export function UserApp({ language = 'en', session, onLogout, onToggleLanguage }
   }
 
   const averages = useMemo(() => {
-    const manual = records.filter((record) => record.overall_rating);
-    const averageRating = manual.length
-      ? manual.reduce((total, record) => total + record.overall_rating, 0) / manual.length
+    const rated = records.filter((r) => r.stability_rating || r.stabilityRating);
+    const averageRating = rated.length
+      ? rated.reduce((t, r) => t + (r.stability_rating ?? r.stabilityRating), 0) / rated.length
       : null;
-    const latencyRecords = records.filter((record) => record.latency_ms !== null);
-    const averageLatency = latencyRecords.length
-      ? latencyRecords.reduce((total, record) => total + record.latency_ms, 0) / latencyRecords.length
+    const latRecords = records.filter((r) => (r.latency_ms ?? r.latencyMs) !== null);
+    const averageLatency = latRecords.length
+      ? latRecords.reduce((t, r) => t + (r.latency_ms ?? r.latencyMs), 0) / latRecords.length
       : null;
+    const jitRecords = records.filter((r) => (r.jitter_ms ?? r.jitterMs) !== null);
+    const averageJitter = jitRecords.length
+      ? jitRecords.reduce((t, r) => t + (r.jitter_ms ?? r.jitterMs), 0) / jitRecords.length
+      : null;
+
     return {
       averageRating,
       averageLatency,
+      averageJitter,
       uploaded: records.filter((record) => record.uploaded_at).length,
     };
   }, [records]);

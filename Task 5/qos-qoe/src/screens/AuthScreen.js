@@ -33,6 +33,7 @@ export function AuthScreen({ language = 'en', onAuthenticated, onToggleLanguage 
       await saveSession(data);
       onAuthenticated(data);
     } catch (error) {
+      console.error('[AuthScreen] Authentication error:', error);
       Alert.alert('Authentication failed', error.message);
     } finally {
       setLoading(false);

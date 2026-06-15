@@ -26,11 +26,15 @@ export async function initDb() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       created_at TEXT NOT NULL,
       network_type TEXT,
+      network_generation TEXT,
       is_connected INTEGER,
       is_internet_reachable INTEGER,
+      is_roaming INTEGER,
       ip_address TEXT,
       isp_provider TEXT,
       connection_label TEXT,
+      device_model TEXT,
+      os_version TEXT,
       latency_ms REAL,
       jitter_ms REAL,
       packet_loss_percent REAL,
@@ -44,6 +48,7 @@ export async function initDb() {
       city TEXT,
       district TEXT,
       street TEXT,
+      cell_id TEXT,
       overall_rating INTEGER,
       response_time_rating INTEGER,
       usability_rating INTEGER,
@@ -52,6 +57,12 @@ export async function initDb() {
       uploaded_at TEXT
     );
   `);
+  // Ensure new columns exist for migration
+  await ensureColumn(db, 'measurements', 'network_generation', 'TEXT');
+  await ensureColumn(db, 'measurements', 'is_roaming', 'INTEGER');
+  await ensureColumn(db, 'measurements', 'device_model', 'TEXT');
+  await ensureColumn(db, 'measurements', 'os_version', 'TEXT');
+  await ensureColumn(db, 'measurements', 'cell_id', 'TEXT');
   await ensureColumn(db, 'measurements', 'isp_provider', 'TEXT');
   await ensureColumn(db, 'measurements', 'connection_label', 'TEXT');
   await ensureColumn(db, 'measurements', 'uploaded_at', 'TEXT');
@@ -66,20 +77,25 @@ export async function saveMeasurement(metrics, feedback = {}, source = 'manual')
   const db = await getDb();
   const result = await db.runAsync(
     `INSERT INTO measurements (
-      created_at, network_type, is_connected, is_internet_reachable, ip_address,
-      isp_provider, connection_label, latency_ms, jitter_ms, packet_loss_percent,
-      download_mbps, signal_strength_dbm, latitude, longitude, accuracy_m,
+      created_at, network_type, network_generation, is_connected, is_internet_reachable, is_roaming,
+      ip_address, isp_provider, connection_label, device_model, os_version,
+      latency_ms, jitter_ms, packet_loss_percent, download_mbps, signal_strength_dbm,
+      latitude, longitude, accuracy_m, cell_id,
       country, region, city, district, street,
       overall_rating, response_time_rating, usability_rating, comment, source
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       metrics.createdAt,
       metrics.networkType,
+      metrics.networkGeneration ?? null,
       metrics.isConnected,
       metrics.isInternetReachable,
+      metrics.isRoaming ? 1 : 0,
       metrics.ipAddress,
       metrics.ispProvider,
       metrics.connectionLabel,
+      metrics.deviceModel ?? null,
+      metrics.osVersion ?? null,
       metrics.latencyMs,
       metrics.jitterMs,
       metrics.packetLossPercent,
@@ -88,6 +104,7 @@ export async function saveMeasurement(metrics, feedback = {}, source = 'manual')
       metrics.latitude,
       metrics.longitude,
       metrics.accuracyM,
+      metrics.cellId ?? null,
       metrics.country,
       metrics.region,
       metrics.city,
